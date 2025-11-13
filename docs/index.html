@@ -51,24 +51,51 @@
   }
 }
 
-    async function doEncrypt() {
-      const plaintext = document.getElementById('plaintext').value;
-      const password = document.getElementById('password').value;
-      if (!password) { alert("Enter a password"); return; }
+  async function doEncrypt() {
+  const plaintext = document.getElementById('plaintext').value;
+  const password = document.getElementById('password').value;
+  if (!password) { alert("Enter a password"); return; }
 
-      const resp = await fetch('/api/encrypt', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ plaintext, password })
-      });
-      if (!resp.ok) {
-        alert('Encryption failed: ' + (await resp.text()));
-        return;
+  // use baseURL so we call your Render backend (not relative origin)
+  const resp = await fetch(baseURL + '/api/encrypt', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ plaintext, password })
+  });
+  if (!resp.ok) {
+    alert('Encryption failed: ' + (await resp.text()));
+    return;
+  }
+  const data = await resp.json();
+  const ciphertext_b64 = data.ciphertext_b64;
+
+  // update UI
+  document.getElementById('ciphertext').value = ciphertext_b64;
+  document.getElementById('ciphertext_in').value = ciphertext_b64; // helpful copy
+
+  // debug log so we can see in Console the save step
+  console.log("Encrypt succeeded — ciphertext length:", ciphertext_b64.length);
+
+  // --- auto-save to DB (only ciphertext, no password) ---
+  const filename = document.getElementById('filenameInput')?.value || null;
+  const note = document.getElementById('noteInput')?.value || "auto-saved";
+
+  const autoSaveEnabled = (document.getElementById('autoSaveToggle')?.checked ?? true);
+
+  if (autoSaveEnabled) {
+    console.log("Calling saveCiphertext...");
+    saveCiphertext(ciphertext_b64, filename, note).then(res => {
+      if (res) {
+        console.log("Saved record id:", res.id);
+      } else {
+        console.log("Save returned null or failed.");
       }
-      const data = await resp.json();
-      document.getElementById('ciphertext').value = data.ciphertext_b64;
-      document.getElementById('ciphertext_in').value = data.ciphertext_b64; // helpful copy
-    }
+    });
+  } else {
+    console.log("Auto-save disabled by user.");
+  }
+}
+
 
     async function doDecrypt() {
       const ciphertext_b64 = document.getElementById('ciphertext_in').value;
