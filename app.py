@@ -8,6 +8,7 @@ from Crypto.Random import get_random_bytes
 import base64
 import os
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 
 
 # ---  params ---
@@ -60,6 +61,12 @@ class DecryptRequest(BaseModel):
 class DecryptResponse(BaseModel):
     plaintext: str
 
+class SaveRequest(BaseModel):
+    ciphertext_b64: str
+    filename: Optional[str] = None
+    note: Optional[str] = None
+    owner: Optional[str] = None
+
 # --- helpers ---
 def derive_key(password: str, salt: bytes) -> bytes:
     return PBKDF2(password.encode(), salt, dkLen=KEY_LEN, count=PBKDF2_ITER)
@@ -99,12 +106,18 @@ def decrypt(req: DecryptRequest):
 from fastapi import Query
 
 @app.post("/api/save", response_model=dict)
-def api_save(ciphertext_b64: str, filename: str = None, note: str = None, owner: str = None):
+def api_save(req: SaveRequest):
     """
-    Save ciphertext and optional metadata. Returns the created record id.
+    Save ciphertext and optional metadata (JSON body).
     """
-    rec = create_blob(ciphertext_b64=ciphertext_b64, filename=filename, note=note, owner=owner)
+    rec = create_blob(
+        ciphertext_b64=req.ciphertext_b64,
+        filename=req.filename,
+        note=req.note,
+        owner=req.owner
+    )
     return {"id": rec.id, "created_at": rec.created_at.isoformat()}
+
 
 @app.get("/api/blob/{blob_id}", response_model=dict)
 def api_get_blob(blob_id: int):
