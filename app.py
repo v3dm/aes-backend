@@ -20,7 +20,7 @@ TAG_LEN = 16
 
 app = FastAPI()
 
-# For demo, allow all origins. For stricter security later, replace ["*"] with your Pages URL.
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,16 +31,46 @@ app.add_middleware(
 )
 
 
-from db import Base, engine
-from db import EncryptedBlob
-from crud import create_blob, get_blob, list_blobs, delete_blob
+# from db import Base, engine
+# from db import EncryptedBlob
+# from crud import create_blob, get_blob, list_blobs, delete_blob
 
-# create tables
-Base.metadata.create_all(bind=engine)
+# #tables
+# Base.metadata.create_all(bind=engine)
+# If USE_DB=true -> import real DB + CRUD and create tables
+# If USE_DB is not true -> provide safe stub functions that raise 503
+# -----------------------
+USE_DB = os.getenv("USE_DB", "false").lower() == "true"
+
+if USE_DB:
+    # real DB imports & init (runs only when USE_DB=true)
+    from db import Base, engine
+    from db import EncryptedBlob
+    from crud import create_blob, get_blob, list_blobs, delete_blob
+
+    # create tables if needed
+    Base.metadata.create_all(bind=engine)
+else:
+    # DB disabled: define safe stubs so endpoints don't crash the app.
+    # These stubs raise HTTP 503 so callers know DB is unavailable.
+    def create_blob(*args, **kwargs):
+        raise HTTPException(status_code=503, detail="Database disabled")
+
+    def get_blob(blob_id):
+        raise HTTPException(status_code=503, detail="Database disabled")
+
+    def list_blobs(limit=50):
+        raise HTTPException(status_code=503, detail="Database disabled")
+
+    def delete_blob(blob_id):
+        raise HTTPException(status_code=503, detail="Database disabled")
+# -----------------------
+# End DB guard
+# -----------------------
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# index.html at the root
+
 @app.get("/", response_class=FileResponse)
 def read_index():
     index_path = os.path.join("static", "index.html")
@@ -72,6 +102,12 @@ def derive_key(password: str, salt: bytes) -> bytes:
     return PBKDF2(password.encode(), salt, dkLen=KEY_LEN, count=PBKDF2_ITER)
 
 # --- API endpoints ---
+@app.get("/api/ping")
+def ping():
+    return {"ok": True, "msg": "pong"}
+
+
+
 @app.post("/api/encrypt", response_model=EncryptResponse)
 def encrypt(req: EncryptRequest):
     if not req.password:

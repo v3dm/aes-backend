@@ -1,23 +1,39 @@
-# Virtual environment
 venv/
 ENV/
 env/
+.venv/
 
-# Python cache files
+
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# VS Code
+
+.env
+.env.*
+*.env
+
+
+data.db
+*.sqlite3
+
+
+*.so
+*.egg-info/
+dist/
+build/
+
+
+*.log
+
+
 .vscode/
+.idea/
 
-# macOS
+
 .DS_Store
-
-# Windows
 Thumbs.db
 
-# pipenv / poetry
 Pipfile.lock
 poetry.lock
