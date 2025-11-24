@@ -34,22 +34,25 @@ import os
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, func, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# 1. Get the URL from environment variable
-DATABASE_URL = os.getenv("postgresql://postgres:5001@db.yeunbsskgpphlbgefdbg.supabase.co:5432/postgres")
+# 1. CORRECT usage: Look for the variable named "DATABASE_URL"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+# If it's missing, we allow it to fail, but the 503 error in app.py handles the user experience.
 if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL environment variable not set.")
+    # Just a warning print, the app.py handles the actual 503
+    print("WARNING: DATABASE_URL not set. Database features will fail.")
+else:
+    # 2. Fix for Supabase (they sometimes use postgres:// which SQLAlchemy hates)
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# 2. FIX: SQLAlchemy needs 'postgresql://', but Supabase sometimes gives 'postgres://'
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-# 3. Create engine (Removed MySQL specific 'charset' args)
-# "pool_pre_ping=True" helps handle dropped connections in the cloud
-engine = create_engine(DATABASE_URL, echo=False, future=True, pool_pre_ping=True)
-
-# Session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
+# 3. Create engine conditionally
+if DATABASE_URL:
+    engine = create_engine(DATABASE_URL, echo=False, future=True, pool_pre_ping=True)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
+else:
+    engine = None
+    SessionLocal = None
 
 # Base model
 Base = declarative_base()
@@ -65,8 +68,9 @@ class EncryptedBlob(Base):
     owner = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-# Create tables automatically on startup
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    if engine:
+        Base.metadata.create_all(bind=engine)
 
+# Try to init immediately if we have a connection
 init_db()
